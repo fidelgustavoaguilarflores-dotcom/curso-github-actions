@@ -1,92 +1,147 @@
+# ============================================================================
+# WORKFLOW: Paso 0 - Inicializar Repositorio
+# ============================================================================
+# Descripción: Este workflow se ejecuta como paso inicial de un flujo de
+# aprendizaje en GitHub Actions. Realiza las siguientes tareas:
+# 1. Verifica el paso actual del aprendizaje
+# 2. Crea una rama nueva (aprendiendo-github-actions)
+# 3. Crea un commit vacío como práctica
+# 4. Actualiza el README y avanza al paso 1
+#
+# Flujo de Ejecución:
+# - Se dispara cuando se hace push a main o manualmente
+# - Verifica que NO sea el repositorio plantilla
+# - Solo se ejecuta cuando el paso actual es 0
+# ============================================================================
+
 name: Paso 0, Inicializar repo
 
-# This step triggers after the learner creates a new repository from the template
-# This step sets STEP to 1
-# This step closes <details id=0> and opens <details id=1>
-
-# This will run every time we create push a commit to `main`
-# Reference https://docs.github.com/en/actions/learn-github-actions/events-that-trigger-workflows
+# EVENTOS QUE DISPARAN EL WORKFLOW:
+# - workflow_dispatch: Permite ejecutar manualmente desde GitHub UI
+# - push a main: Se ejecuta automáticamente cuando se hace push a la rama main
+#
+# Referencias: https://docs.github.com/en/actions/learn-github-actions/events-that-trigger-workflows
 on:
-  workflow_dispatch:
+  workflow_dispatch: # Permite ejecución manual
   push:
     branches:
-      - main
+      - main # Se dispara cuando hay push a la rama main
 
-# Reference https://docs.github.com/en/actions/security-guides/automatic-token-authentication
+# PERMISOS NECESARIOS PARA EL WORKFLOW
+# - contents: read  -> Permite descargar el código del repositorio (checkout)
+# - contents: write -> Permite hacer cambios en el repositorio (commits, push)
+#
+# Referencia: https://docs.github.com/en/actions/security-guides/automatic-token-authentication
 permissions:
-  # Need `contents: read` to checkout the repository
-  # Need `contents: write` to update the step metadata
-  contents: write
+  contents: write # Necesario para leer y escribir contenido en el repositorio
 
 jobs:
-  # Get the current step from .github/script/STEP so we can
-  # limit running the main job when the learner is on the same step.
+  # ========================================================================
+  # JOB 1: OBTENER_PASO_ACTUAL
+  # ========================================================================
+  # Propósito: Leer el archivo .github/script/STEP para saber en qué paso
+  # del aprendizaje se encuentra el usuario. Este valor se pasa al segundo
+  # job para determinar si debe ejecutarse.
+  # ========================================================================
   obtener_paso_actual:
     name: Verificar paso actual
     runs-on: ubuntu-latest
     steps:
+      # Descargar el código del repositorio
       - name: Checkout
         uses: actions/checkout@v3
+
+      # Leer el contenido del archivo STEP y guardarlo en una salida
+      # para que otros jobs puedan acceder a él
       - id: obtener_paso
         run: |
+          # Lee el archivo STEP y lo almacena en GITHUB_OUTPUT
+          # Esto permite pasarlo al siguiente job mediante outputs
           echo "paso_actual=$(cat ./.github/script/STEP)" >> $GITHUB_OUTPUT
+
+    # Exportar la variable para que otros jobs la usen
     outputs:
       paso_actual: ${{ steps.obtener_paso.outputs.paso_actual }}
 
+  # ========================================================================
+  # JOB 2: INICIALIZAR
+  # ========================================================================
+  # Propósito: Realizar las acciones de inicialización:
+  # 1. Crear una nueva rama llamada "aprendiendo-github-actions"
+  # 2. Crear un commit vacío en esa rama
+  # 3. Actualizar el archivo STEP de 0 a 1 en el README
+  #
+  # Este job SOLO se ejecuta si:
+  # - No es el repositorio plantilla (es el repositorio del usuario)
+  # - El paso actual es 0 (condición obtenida del job anterior)
+  # ========================================================================
   inicializar:
     name: Inicializar repo
-    needs: obtener_paso_actual
+    needs: obtener_paso_actual # Este job depende del job anterior
 
-    # We will only run this action when:
-    # 1. This repository isn't the template repository
-    # 2. The STEP is currently 0
-    # Reference https://docs.github.com/en/actions/learn-github-actions/contexts
-    # Reference https://docs.github.com/en/actions/learn-github-actions/expressions
+    # Condicional: Solo ejecutar si se cumplen AMBAS condiciones:
+    # 1. !github.event.repository.is_template -> No es un repositorio plantilla
+    # 2. paso_actual == 0 -> El usuario está en el paso 0
+    #
+    # Referencia: https://docs.github.com/en/actions/learn-github-actions/contexts
+    # Referencia: https://docs.github.com/en/actions/learn-github-actions/expressions
     if: >-
       ${{ !github.event.repository.is_template
           && needs.obtener_paso_actual.outputs.paso_actual == 0 }}
 
-    # We'll run Ubuntu for performance instead of Mac or Windows
+    # Usar Ubuntu para mejor rendimiento (más rápido que Mac o Windows)
     runs-on: ubuntu-latest
 
     steps:
-      # We'll need to check out the repository so that we can edit the README
+      # Descargar el repositorio completo con todo el historial de ramas
+      # fetch-depth: 0 obtiene TODO el historial, no solo los últimos commits
       - name: Checkout
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0 # Let's get all the branches
+          fetch-depth: 0 # Obtener todo el historial de ramas
 
-      # Make a branch, file, and commit for the learner
+      # PASO 1: Crear una rama, un archivo y hacer un commit para el usuario
       - name: Preparar rama y archivo
         run: |
+          # Verificar que estamos en el paso 0
           echo "Make sure we are on step 0"
           if [ "$(cat .github/script/STEP)" != 0 ]
           then
             echo "El paso actual no es 0"
             exit 0
           fi
+
+          # Crear una nueva rama con el nombre "aprendiendo-github-actions"
           echo "Creando una rama"
           BRANCH=aprendiendo-github-actions
           git checkout -b $BRANCH
+
+          # Crear un commit vacío (sin cambios) para que el usuario lo vea
           echo "Creando un commit"
-          git config user.name github-actions
+          git config user.name github-actions      # Configurar usuario git
           git config user.email github-actions@github.com
           git commit --allow-empty --message="Create an empty commit"
-          
+
+          # Subir la rama al repositorio remoto (GitHub)
           echo "Push"
           git push --set-upstream origin $BRANCH
-          
+
+          # Volver a la rama main
           echo "Restaurar main"
           git checkout main
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Token para autenticación
 
-      # Update README to close <details id=0> and open <details id=1>
-      # and set STEP to '1'
+      # PASO 2: Actualizar el README y avanzar al paso 1
+      # Esta acción:
+      # - Cierra la sección <details id=0> en el README
+      # - Abre la sección <details id=1> en el README
+      # - Actualiza el archivo STEP de 0 a 1
+      # - Hace commit y push de los cambios
       - name: Actualizar a paso 1
         uses: skills/action-update-step@v1
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          from_step: 0
-          to_step: 1
-          branch_name: aprendiendo-github-actions
+          token: ${{ secrets.GITHUB_TOKEN }} # Token para hacer commits
+          from_step: 0 # Paso actual
+          to_step: 1 # Siguiente paso
+          branch_name: aprendiendo-github-actions # Rama donde hacer los cambios
