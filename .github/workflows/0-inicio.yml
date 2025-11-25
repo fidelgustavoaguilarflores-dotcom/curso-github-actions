@@ -49,7 +49,7 @@ jobs:
     steps:
       # Descargar el código del repositorio
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
 
       # Leer el contenido del archivo STEP y guardarlo en una salida
       # para que otros jobs puedan acceder a él
@@ -96,7 +96,7 @@ jobs:
       # Descargar el repositorio completo con todo el historial de ramas
       # fetch-depth: 0 obtiene TODO el historial, no solo los últimos commits
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0 # Obtener todo el historial de ramas
 
