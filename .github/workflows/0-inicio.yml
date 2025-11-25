@@ -139,7 +139,7 @@ jobs:
       # - Actualiza el archivo STEP de 0 a 1
       # - Hace commit y push de los cambios
       - name: Actualizar a paso 1
-        uses: skills/action-update-step@v1
+        uses: skills/action-update-step@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }} # Token para hacer commits
           from_step: 0 # Paso actual
